@@ -4,6 +4,7 @@ import './App.css'
 import axios from 'axios';
 import {
   Button,
+  IconButton,
   Container,
   Input,
   NumberInput,
@@ -24,6 +25,8 @@ import {
   ChakraProvider, 
   Textarea,
   Box} from '@chakra-ui/react';
+
+import { FaDownload } from "react-icons/fa6";
 
 import { Field, Form, Formik } from 'formik';
 import ReactMarkdown from 'react-markdown';
@@ -148,12 +151,23 @@ function App() {
           </Formik>
         </Box>
         
-        {item && ( 
-          <Box mt={4} width="800px" margin="0 auto" padding="16px" border="1px solid #e2e8f0" borderRadius="8px" boxShadow="md">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {item}
-            </ReactMarkdown>
-          </Box>)
+        {item && (
+          <div>
+            <IconButton
+              colorScheme='teal'
+              aria-label='Call Segun'
+              size='lg'
+              margin={2}
+              icon={<FaDownload />}
+            />
+
+            <Box mt={4} width="800px" margin="0 auto" padding="16px" border="1px solid #e2e8f0" borderRadius="8px" boxShadow="md">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {item}
+              </ReactMarkdown>
+            </Box>
+          </div>
+          )
         }
       </ChakraProvider>
     </>
