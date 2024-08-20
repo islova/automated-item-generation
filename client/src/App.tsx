@@ -32,6 +32,8 @@ import { Field, Form, Formik } from 'formik';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { parseItem } from './utils/item-parser';
+
 function App() {
 
   const [item, setItem] = useState(null);
@@ -160,7 +162,7 @@ function App() {
               margin={2}
               icon={<FaDownload />}
             />
-
+            {parseItem(item)}
             <Box mt={4} width="800px" margin="0 auto" padding="16px" border="1px solid #e2e8f0" borderRadius="8px" boxShadow="md">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {item}
