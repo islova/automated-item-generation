@@ -32,7 +32,7 @@ import { Field, Form, Formik } from 'formik';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { parseItem } from './utils/item-parser';
+import { itemXLSXDownload } from './utils/xlsx-util';
 
 function App() {
 
@@ -144,6 +144,7 @@ function App() {
                 mt={4}
                 colorScheme='teal'
                 isLoading={props.isSubmitting}
+                loadingText='Generando'
                 type='submit'
               >
                 Generar
@@ -160,9 +161,9 @@ function App() {
               aria-label='Call Segun'
               size='lg'
               margin={2}
+              onClick={itemXLSXDownload(item)}
               icon={<FaDownload />}
             />
-            {parseItem(item)}
             <Box mt={4} width="800px" margin="0 auto" padding="16px" border="1px solid #e2e8f0" borderRadius="8px" boxShadow="md">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {item}
