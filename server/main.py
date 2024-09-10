@@ -31,6 +31,7 @@ def get_iems():
     text = request.args.get('text')
     band = request.args.get('band')
     amount = request.args.get('amount')
+    descriptor = request.args.get('descriptor')
 
     response = model.generate_content(get_prompt(text))
 
