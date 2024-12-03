@@ -38,7 +38,7 @@ import { itemXLSXDownload, descriptorXLSXReader } from './utils/xlsx-util';
 function App() {
   useEffect(() => {
     const asyncDescriptorWrapper = async () => {
-      const result = await descriptorXLSXReader('CEFR Descriptors (2020).xlsx');
+      const result = await descriptorXLSXReader('ELTA Descriptors.xlsx');
       console.log(result);
       setDescriptorInfo(result);
     };
@@ -49,18 +49,18 @@ function App() {
   const [descriptorInfo, setDescriptorInfo] = useState(null);
 
   const fetchItems = async (values: {
-    text: string;
     level: string;
     amount: number;
     descriptor: string;
+    context: string;
   }) => {
     setItem(null); // Reset submission status before making the request
-    const response = await axios.get('http://127.0.0.1:8080/api/items', {
+    const response = await axios.get('http://127.0.0.1:8080/api/texts', {
       params: {
-        text: values.text,
         level: values.level,
         amount: values.amount,
         descriptor: values.descriptor,
+        context: values.context,
       },
     });
     console.log(response.data);
@@ -71,14 +71,6 @@ function App() {
     } else {
       throw new Error('Error submitting data');
     }
-  };
-
-  const validateText = (text: string) => {
-    let error;
-    if (!text) {
-      error = 'Ingrese texto válido';
-    }
-    return error;
   };
 
   return (
@@ -101,75 +93,100 @@ function App() {
           >
             {(props) => (
               <Form>
-                <Field name="text" validate={validateText}>
-                  {({ field, form }) => (
-                    <FormControl
-                      isInvalid={form.errors.text && form.touched.text}
-                      marginBottom="16px"
-                    >
-                      <FormLabel>Texto</FormLabel>
-                      <Textarea
-                        {...field}
-                        placeholder="Inserte el texto aquí..."
-                        size="lg" // predefined sizes: "xs", "sm", "md", "lg"
-                        height="300px" // custom height to make it larger
-                        padding="12px" // custom padding
-                        overflow="auto" // ensures that overflow text can be scrolled
-                      />
-                      <FormErrorMessage>{form.errors.text}</FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
-
                 <Field name="level">
-                  {({ field, form }) => (
-                    <FormControl
-                      isInvalid={form.errors.level && form.touched.level}
-                      marginBottom="16px"
+                {({ field, form }) => (
+                  <FormControl
+                    isInvalid={form.errors.level && form.touched.level}
+                    marginBottom="16px"
+                  >
+                    <FormLabel>CEFR Level</FormLabel>
+                    <Select
+                      {...field}
+                      placeholder="Select a level"
+                      onChange={(e) => {
+                        const selectedLevel = e.target.value;
+                        props.setFieldValue('level', selectedLevel); // Set level
+                        props.setFieldValue('descriptor', ''); // Reset descriptor
+                        props.setFieldValue('context', ''); // Reset context
+                      }}
                     >
-                      <FormLabel>Nivel CEFR</FormLabel>
-                      <Select {...field} placeholder="Seleccione un nivel">
-                        onChange=
-                        {(e) => {
-                          const selectedLevel = e.target.value;
-                          props.setFieldValue('level', selectedLevel);
-                          props.setFieldValue('descriptor', ''); // Reset descriptor
-                        }}
-                        {descriptorInfo &&
-                          descriptorInfo.Level.map((level) => {
-                            return <option>{level}</option>;
-                          })}
-                      </Select>
-                      <FormErrorMessage>{form.errors.level}</FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
+                      {descriptorInfo &&
+                        Object.keys(descriptorInfo).map((level: string) => {
+                          return (
+                            <option key={level} value={level}>
+                              {level}
+                            </option>
+                          );
+                        })}
+                    </Select>
+                    <FormErrorMessage>{form.errors.level}</FormErrorMessage>
+                  </FormControl>
+                )}
+              </Field>
 
-                <Field name="descriptor">
-                  {({ field, form }) => (
-                    <FormControl
-                      isInvalid={
-                        form.errors.descriptor && form.touched.descriptor
-                      }
-                      marginBottom="16px"
+              <Field name="descriptor">
+                {({ field, form }) => (
+                  <FormControl
+                    isInvalid={form.errors.descriptor && form.touched.descriptor}
+                    marginBottom="16px"
+                  >
+                    <FormLabel>Descriptor</FormLabel>
+                    <Select
+                      {...field}
+                      placeholder="Select a descriptor"
+                      isDisabled={!form.values.level}
+                      onChange={(e) => {
+                        const selectedDescriptor = e.target.value;
+                        props.setFieldValue('descriptor', selectedDescriptor); // Set descriptor
+                        props.setFieldValue('context', ''); // Reset context
+                      }}
                     >
-                      <FormLabel>Descriptor</FormLabel>
-                      <Select
-                        {...field}
-                        placeholder="Seleccione un descriptor"
-                        isDisabled={!form.values.level}
-                      >
-                        {descriptorInfo &&
-                          descriptorInfo.Descriptor[form.values.level]?.map(
-                            (descriptor) => {
-                              return <option>{descriptor}</option>;
-                            },
-                          )}
-                      </Select>
-                      <FormErrorMessage>{form.errors.level}</FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
+                      {descriptorInfo &&
+                        form.values.level &&
+                        Object.keys(descriptorInfo[form.values.level]).map(
+                          (descriptor: string) => {
+                            return (
+                              <option key={descriptor} value={descriptor}>
+                                {descriptor}
+                              </option>
+                            );
+                          }
+                        )}
+                    </Select>
+                    <FormErrorMessage>{form.errors.descriptor}</FormErrorMessage>
+                  </FormControl>
+                )}
+              </Field>
+
+              <Field name="context">
+                {({ field, form }) => (
+                  <FormControl
+                    isInvalid={form.errors.context && form.touched.context}
+                    marginBottom="16px"
+                  >
+                    <FormLabel>Context</FormLabel>
+                    <Select
+                      {...field}
+                      placeholder="Select a context"
+                      isDisabled={!form.values.descriptor || !form.values.level}
+                    >
+                      {descriptorInfo &&
+                        form.values.level &&
+                        form.values.descriptor &&
+                        descriptorInfo[form.values.level][form.values.descriptor].map(
+                          (context: string) => {
+                            return (
+                              <option key={context} value={context}>
+                                {context}
+                              </option>
+                            );
+                          }
+                        )}
+                    </Select>
+                    <FormErrorMessage>{form.errors.context}</FormErrorMessage>
+                  </FormControl>
+                )}
+              </Field>
 
                 <Field name="amount">
                   {({ field, form }) => (
@@ -177,7 +194,7 @@ function App() {
                       isInvalid={form.errors.amount && form.touched.amount}
                       marginBottom="16px"
                     >
-                      <FormLabel>Cantidad de items</FormLabel>
+                      <FormLabel>Amount of texts</FormLabel>
                       <Flex>
                         <NumberInput
                           {...field}

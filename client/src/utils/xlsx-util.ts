@@ -47,50 +47,40 @@ export const descriptorXLSXReader = async (filename: string) => {
 
     const filtered = mergedData.filter(
       (row: any) =>
-        row['CEFR Descriptor Scheme (updated)'] ===
-          'Communicative language activities' &&
-        row['Mode of communication'] === 'Reception' &&
-        (row['Activity, strategy or competence'] === 'Oral comprehension' ||
           row['Activity, strategy or competence'] ===
-            'Reading comprehension') &&
-        row['Level'] !== 'C2',
+            'Reading Comprehension'
     );
 
-    result = extractUniqueColumnValues([].concat(...filtered));
+    result = extractLevelDescriptorContext([].concat(...filtered));
   } catch (error) {
     console.error('Error reading the Excel file:', error);
   }
   return result;
 };
 
-const extractUniqueColumnValues = (data: any[]) => {
-  const uniqueLevels = new Set();
-  const descriptorByLevel: { [key: string]: Set<string> } = {};
+const extractLevelDescriptorContext = (data: any[]) => {
+  const result: { [level: string]: { [descriptor: string]: string[] } } = {};
 
   data.forEach((row) => {
-    const level = row.Level;
-    const descriptor = row.Descriptor;
+    const level = row['Level'];
+    const descriptor = row['PELEx Descriptor'];
+    const context = row['Context'];
 
-    // Add unique "Level" values to the Set
-    if (level) uniqueLevels.add(level);
+    // Ensure the level exists in the result
+    if (!result[level]) {
+      result[level] = {};
+    }
 
-    // Add unique "Descriptor" values to the corresponding "Level"
-    if (level && descriptor) {
-      if (!descriptorByLevel[level]) {
-        descriptorByLevel[level] = new Set(); // Initialize a Set for each level
-      }
-      descriptorByLevel[level].add(descriptor); // Add the descriptor to the Set
+    // Ensure the descriptor exists under the level
+    if (!result[level][descriptor]) {
+      result[level][descriptor] = [];
+    }
+
+    // Add the context if it's not already present
+    if (context && !result[level][descriptor].includes(context)) {
+      result[level][descriptor].push(context);
     }
   });
 
-  // Convert Sets to arrays
-  const descriptorObject = {};
-  Object.keys(descriptorByLevel).forEach((level) => {
-    descriptorObject[level] = Array.from(descriptorByLevel[level]); // Convert Set to array for each level
-  });
-
-  return {
-    Level: Array.from(uniqueLevels), // Convert Set to array for "Level"
-    Descriptor: descriptorObject,
-  };
+  return result;
 };
