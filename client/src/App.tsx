@@ -1,72 +1,107 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useAsync } from "react-use"
 import './App.css';
 
 import axios from 'axios';
 import {
-  Button,
-  IconButton,
-  Container,
-  Input,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
-  Flex,
-  Slider,
-  SliderTrack,
-  SliderFilledTrack,
-  SliderThumb,
-  FormControl,
-  FormLabel,
-  FormErrorMessage,
-  FormHelperText,
-  Select,
-  ChakraProvider,
-  Textarea,
+  For,
+  Stack,
+  StackSeparator,
+  Text,
   Box,
+  createListCollection 
 } from '@chakra-ui/react';
-
-import { FaDownload } from 'react-icons/fa6';
-
-import { Field, Form, Formik } from 'formik';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
+import { Field } from "@/components/ui/field"
+import { Button } from "@/components/ui/button"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectRoot,
+  SelectTrigger,
+  SelectValueText,
+} from "@/components/ui/select"
+import {
+  NumberInputField,
+  NumberInputLabel,
+  NumberInputRoot,
+} from "@/components/ui/number-input"
+import { z } from "zod"
+import { Controller, useForm } from "react-hook-form"
 import { itemXLSXDownload, descriptorXLSXReader } from './utils/xlsx-util';
 
 function App() {
-  useEffect(() => {
-    const asyncDescriptorWrapper = async () => {
-      const result = await descriptorXLSXReader('ELTA Descriptors.xlsx');
-      console.log(result);
-      setDescriptorInfo(result);
-    };
-    asyncDescriptorWrapper();
+  const descriptorInfoState = useAsync(async () => {
+    return await descriptorXLSXReader('ELTA Descriptors.xlsx');
   }, []);
 
-  const [item, setItem] = useState(null);
-  const [descriptorInfo, setDescriptorInfo] = useState(null);
+  const formSchema = z.object({
+    level: z.string({ message: "CEFR Level is required" }).array(),
+    descriptor: z.string({ message: "PELEx descriptor is required" }).array(),
+    context: z.string({ message: "Context is required" }).array(),
+    amount: z.string()
+  });
+  type FormValues = z.infer<typeof formSchema>
+  const {
+    handleSubmit,
+    formState: { errors },
+    control,
+    watch,
+    setValue
+  } = useForm<FormValues>({
+    resolver: zodResolver(formSchema)
+  });
+  const [selectedLevel, selectedDescriptor, selectedContext] = 
+    watch(["level", "descriptor", "context"]);
 
-  const fetchItems = async (values: {
-    level: string;
-    amount: number;
-    descriptor: string;
-    context: string;
-  }) => {
+  const [item, setItem] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const descriptorInfo = useMemo(() => {
+    return descriptorInfoState.value
+  }, [descriptorInfoState.loading])
+
+  const levels = useMemo(() => {
+    return createListCollection({
+      items: descriptorInfo ? Object.keys(descriptorInfo) : []
+    })
+  }, [descriptorInfo]);
+
+  const descriptors = useMemo(() => {
+    return createListCollection({
+      items: selectedLevel ? Object.keys(descriptorInfo[selectedLevel[0]]) : []
+    })
+  }, [selectedLevel]);
+
+  const contexts = useMemo(() => {
+    if (!selectedDescriptor || !selectedLevel) {
+      return createListCollection({ items: [] });
+    }
+    return createListCollection({
+      items: descriptorInfo[selectedLevel[0]][selectedDescriptor[0]] || [],
+    });
+  }, [selectedDescriptor, selectedLevel, descriptorInfo]);
+  
+
+  const fetchItems = async (data) => {
+    console.log('Submitting!');
+    console.log(data)
+    setIsGenerating(true);
     setItem(null); // Reset submission status before making the request
     const response = await axios.get('http://127.0.0.1:8080/api/texts', {
       params: {
-        level: values.level,
-        amount: values.amount,
-        descriptor: values.descriptor,
-        context: values.context,
+        level: data.level[0],
+        amount: data.amount,
+        descriptor: data.descriptor[0],
+        context: data.context[0],
       },
     });
+    setIsGenerating(false);
     console.log(response.data);
 
     if (response.status == 200) {
-      const result = await response.data.res;
+      const result = await response.data;
       setItem(result);
     } else {
       throw new Error('Error submitting data');
@@ -75,213 +110,193 @@ function App() {
 
   return (
     <>
-      <ChakraProvider>
-        <Box
+      <Box
+        width="800px"
+        margin="0 auto"
+        padding="16px"
+        border="1px solid #e2e8f0"
+        borderRadius="8px"
+        boxShadow="md"
+      >
+        <form onSubmit={handleSubmit(fetchItems)}
+        >
+          <Stack gap="5">
+            <Field label="CEFR Level" onChange={(value) => {
+              console.log(selectedLevel);
+              console.log(selectedContext);
+              }}    
+              invalid={!!errors.level}
+              errorText={errors.level?.message}
+            >
+              <Controller
+                name="level"
+                control={control}
+                render={({ field }) => (
+                  <SelectRoot
+                    name={field.name}
+                    value={field.value}
+                    onValueChange={({ value }) => {
+                      setValue("descriptor", []); // Reset descriptor
+                      setValue("context", []); // Reset context
+                      field.onChange(value)}}
+                    onInteractOutside={() => field.onBlur()}
+                    collection={levels}
+                  >
+                  <SelectTrigger>
+                    <SelectValueText placeholder='Select a level' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {levels &&
+                      levels.items.map((level: string) => (
+                        <SelectItem item={level} key={level}>
+                          {level}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </SelectRoot>
+              )}/>
+            </Field>
+          
+            <Field label="PELEx Descriptor"onChange={(value) => {
+                console.log(selectedDescriptor);
+                }}
+                invalid={!!errors.descriptor}
+                errorText={errors.descriptor?.message}
+              >
+                <Controller
+                  name="descriptor"
+                  control={control}
+                  render={({ field }) => (
+                    <SelectRoot
+                      disabled={!!!selectedLevel}
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={({ value }) => {  
+                        setValue("context", []); // Reset context
+                        field.onChange(value)}}
+                      onInteractOutside={() => field.onBlur()}
+                      collection={descriptors}
+                    >
+                    <SelectTrigger>
+                      <SelectValueText placeholder='Select a descriptor' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {descriptors &&
+                        descriptors.items.map(
+                          (descriptor: string) => (
+                          <SelectItem item={descriptor} key={descriptor}>
+                            {descriptor}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </SelectRoot>
+                )}/>
+              </Field>
+            
+              <Field label="Context"onChange={(value) => {
+                console.log(selectedContext);
+                console.log(descriptorInfo);
+                }}
+                invalid={!!errors.context}
+                errorText={errors.context?.message}
+              >
+                <Controller
+                  name="context"
+                  control={control}
+                  render={({ field }) => (
+                    <SelectRoot
+                      disabled={!!!selectedDescriptor || selectedDescriptor.length == 0}
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={({ value }) => field.onChange(value)}
+                      onInteractOutside={() => field.onBlur()}
+                      collection={contexts}
+                    >
+                    <SelectTrigger>
+                      <SelectValueText placeholder='Select a context' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contexts &&
+                        contexts.items.map(
+                          (context: string) => (
+                          <SelectItem item={context} key={context}>
+                            {context}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </SelectRoot>
+                )}/>
+              </Field>
+              
+              <Field label="Amount" onChange={(value) => {
+                console.log(selectedContext);
+                console.log(descriptorInfo);
+                }}
+                invalid={!!errors.amount}
+                errorText={errors.amount?.message}
+              >
+                <Controller
+                  name="amount"
+                  control={control}
+                  render={({ field }) => (
+                  <NumberInputRoot
+                    defaultValue="1" min={1} max={5}
+                    name={field.name}
+                    value={field.value}
+                    onValueChange={({ value }) => {
+                      field.onChange(value)
+                    }}
+                  >
+                    <NumberInputField onBlur={field.onBlur} />
+                  </NumberInputRoot>
+                )}/>
+              </Field>
+              
+              <Button
+                variant="solid"
+                backgroundColor="teal"
+                disabled={!!!selectedContext || selectedContext.length == 0}
+                loading={isGenerating} loadingText="Generating"
+                type="submit"
+                onClick={() => {console.log(errors)}}
+              >
+                Generate
+              </Button>
+            </Stack>
+          </form>
+      </Box>
+
+      {item && (
+        <Stack
           width="800px"
           margin="0 auto"
+          mt={10}
           padding="16px"
           border="1px solid #e2e8f0"
           borderRadius="8px"
-          boxShadow="md"
-        >
-          <Formik
-            initialValues={{ text: '', amount: 1 }}
-            onSubmit={async (values, actions) => {
-              await fetchItems(values);
-              actions.setSubmitting(false);
-            }}
+          boxShadow="md">
+            <For each={item.results}>
+              {(response, index) => (
+                <Box borderWidth="1px" key={index} p="4">
+                  <Text fontWeight="bold">Text #{index+1}</Text>
+                  <Text fontWeight="bold">CEFR Level: {response.level}</Text>
+                  <Text fontWeight="bold">PELEx Descriptor: {response.descriptor}</Text>
+                  <Text fontWeight="bold">Context: {response.context}</Text>
+                  <Text color="fg.muted">{response.text}</Text>
+                </Box>
+              )}
+            </For>
+          {/* <Button
+            mt={4}
+            colorScheme="teal"
+            loadingText="Downloading"
+            type="button"
+            onClick={() => itemXLSXDownload(item)}
           >
-            {(props) => (
-              <Form>
-                <Field name="level">
-                {({ field, form }) => (
-                  <FormControl
-                    isInvalid={form.errors.level && form.touched.level}
-                    marginBottom="16px"
-                  >
-                    <FormLabel>CEFR Level</FormLabel>
-                    <Select
-                      {...field}
-                      placeholder="Select a level"
-                      onChange={(e) => {
-                        const selectedLevel = e.target.value;
-                        props.setFieldValue('level', selectedLevel); // Set level
-                        props.setFieldValue('descriptor', ''); // Reset descriptor
-                        props.setFieldValue('context', ''); // Reset context
-                      }}
-                    >
-                      {descriptorInfo &&
-                        Object.keys(descriptorInfo).map((level: string) => {
-                          return (
-                            <option key={level} value={level}>
-                              {level}
-                            </option>
-                          );
-                        })}
-                    </Select>
-                    <FormErrorMessage>{form.errors.level}</FormErrorMessage>
-                  </FormControl>
-                )}
-              </Field>
-
-              <Field name="descriptor">
-                {({ field, form }) => (
-                  <FormControl
-                    isInvalid={form.errors.descriptor && form.touched.descriptor}
-                    marginBottom="16px"
-                  >
-                    <FormLabel>Descriptor</FormLabel>
-                    <Select
-                      {...field}
-                      placeholder="Select a descriptor"
-                      isDisabled={!form.values.level}
-                      onChange={(e) => {
-                        const selectedDescriptor = e.target.value;
-                        props.setFieldValue('descriptor', selectedDescriptor); // Set descriptor
-                        props.setFieldValue('context', ''); // Reset context
-                      }}
-                    >
-                      {descriptorInfo &&
-                        form.values.level &&
-                        Object.keys(descriptorInfo[form.values.level]).map(
-                          (descriptor: string) => {
-                            return (
-                              <option key={descriptor} value={descriptor}>
-                                {descriptor}
-                              </option>
-                            );
-                          }
-                        )}
-                    </Select>
-                    <FormErrorMessage>{form.errors.descriptor}</FormErrorMessage>
-                  </FormControl>
-                )}
-              </Field>
-
-              <Field name="context">
-                {({ field, form }) => (
-                  <FormControl
-                    isInvalid={form.errors.context && form.touched.context}
-                    marginBottom="16px"
-                  >
-                    <FormLabel>Context</FormLabel>
-                    <Select
-                      {...field}
-                      placeholder="Select a context"
-                      isDisabled={!form.values.descriptor || !form.values.level}
-                    >
-                      {descriptorInfo &&
-                        form.values.level &&
-                        form.values.descriptor &&
-                        descriptorInfo[form.values.level][form.values.descriptor].map(
-                          (context: string) => {
-                            return (
-                              <option key={context} value={context}>
-                                {context}
-                              </option>
-                            );
-                          }
-                        )}
-                    </Select>
-                    <FormErrorMessage>{form.errors.context}</FormErrorMessage>
-                  </FormControl>
-                )}
-              </Field>
-
-                <Field name="amount">
-                  {({ field, form }) => (
-                    <FormControl
-                      isInvalid={form.errors.amount && form.touched.amount}
-                      marginBottom="16px"
-                    >
-                      <FormLabel>Amount of texts</FormLabel>
-                      <Flex>
-                        <NumberInput
-                          {...field}
-                          min={1}
-                          max={10}
-                          defaultValue={1}
-                          maxW="100px"
-                          mr="2rem"
-                          value={props.values.amount}
-                          isDisabled={true}
-                          onChange={(value) =>
-                            props.setFieldValue('amount', value)
-                          }
-                        >
-                          <NumberInputField />
-                          <NumberInputStepper>
-                            <NumberIncrementStepper />
-                            <NumberDecrementStepper />
-                          </NumberInputStepper>
-                        </NumberInput>
-                        <Slider
-                          {...field}
-                          flex="1"
-                          focusThumbOnChange={false}
-                          value={props.values.amount}
-                          isDisabled={true}
-                          onChange={(value) =>
-                            props.setFieldValue('amount', value)
-                          }
-                          min={1}
-                          max={10}
-                          defaultValue={1}
-                        >
-                          <SliderTrack>
-                            <SliderFilledTrack />
-                          </SliderTrack>
-                          <SliderThumb
-                            fontSize="sm"
-                            boxSize="32px"
-                            children={props.values.amount}
-                          />
-                        </Slider>
-                      </Flex>
-                      <FormErrorMessage>{form.errors.amount}</FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
-
-                <Button
-                  mt={4}
-                  colorScheme="teal"
-                  isDisabled={!props.values.level || !props.values.descriptor}
-                  isLoading={props.isSubmitting}
-                  loadingText="Generando"
-                  type="submit"
-                >
-                  Generar
-                </Button>
-              </Form>
-            )}
-          </Formik>
-        </Box>
-
-        {item && (
-          <div>
-            <IconButton
-              colorScheme="teal"
-              aria-label="Call Segun"
-              size="lg"
-              margin={2}
-              onClick={itemXLSXDownload(item)}
-              icon={<FaDownload />}
-            />
-            <Box
-              mt={4}
-              width="800px"
-              margin="0 auto"
-              padding="16px"
-              border="1px solid #e2e8f0"
-              borderRadius="8px"
-              boxShadow="md"
-            >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{item}</ReactMarkdown>
-            </Box>
-          </div>
-        )}
-      </ChakraProvider>
+            Download
+          </Button> */}
+        </Stack>
+      )}
     </>
   );
 }

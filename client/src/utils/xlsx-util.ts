@@ -3,7 +3,9 @@ import { saveAs } from 'file-saver';
 import { parseItem } from './item-parser';
 
 export const itemXLSXDownload = (data: string) => {
+  console.log(data);
   const parsedData = parseItem(data);
+  console.log(parsedData);
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(parsedData);
   // Add the worksheet to the workbook
